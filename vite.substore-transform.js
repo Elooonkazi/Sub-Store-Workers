@@ -122,6 +122,22 @@ export default function getParser() {
             contents = replaceEvalRequire(contents, '@maxmind/geoip2-node', '({ Reader: { openBuffer: () => ({ country: () => null, asn: () => null }) } })');
             contents = replaceEvalRequire(contents, 'stream/promises', 'globalThis.__stream_promises_shim__');
 
+            // Sub-Store >= 2.42: runtime shims use tryNodeBuiltin(() => require('x'))
+            // instead of eval('require(...)'); replace with the same shims.
+            const tryNodeBuiltinShims = {
+                'fs': 'globalThis.__fs_shim__',
+                'path': 'globalThis.__path_shim__',
+                'stream/promises': 'globalThis.__stream_promises_shim__',
+                'child_process': '({ execFile: () => {} })',
+            };
+            contents = contents.replace(
+                /tryNodeBuiltin\s*\(\s*\(\s*\)\s*=>\s*require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)\s*\)/g,
+                (match, mod) => {
+                    const key = mod.startsWith('node:') ? mod.slice(5) : mod;
+                    return tryNodeBuiltinShims[key] || tryNodeBuiltinShims[mod] || 'undefined';
+                },
+            );
+
             contents = contents.replace(/const\s+isNode\s*=\s*eval\s*\(\s*`typeof\s+process\s*!==\s*"undefined"`\s*\)/g, 'const isNode = false');
             contents = contents.replace(/const\s+isSurge\s*=\s*typeof\s+\$httpClient\s*!==\s*['"]undefined['"]\s*&&\s*!isLoon(\s*&&\s*!isEgern)?\s*;/g, 'const isSurge = true;');
 
